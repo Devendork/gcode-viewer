@@ -1,6 +1,11 @@
+
+
 function error(msg) {
   alert(msg);
 }
+
+
+
 
 function loadFile(path, callback /* function(contents) */) {
   $.get(path, null, callback, 'text')
@@ -15,17 +20,43 @@ function openDialog() {
   $('#openModal').modal();
 }
 
-var scene = null;
+var scene2d = null;
+var scene3d = null;
 var object = null;
+
+
+function checkKey(e){
+
+
+    e = e || window.event;
+    if (e.keyCode == '37') {
+		    // left arrow
+		   scene2d.prevStep(); 
+		}
+	else if (e.keyCode == '39') {
+		    //right arrow
+		scene2d.nextStep();	
+	}
+
+}
+
+
 
 function openGCodeFromPath(path) {
   $('#openModal').modal('hide');
-  if (object) {
-    scene.remove(object);
+  if (hasGL && object) {
+    scene3d.remove(object);
   }
+
   loadFile(path, function(gcode) {
-    object = createObjectFromGCode(gcode);
-    scene.add(object);
+    instructions = createGeometryFromGCode(gcode);
+    scene2d.add(instructions);
+
+    if(hasGL){
+    object = createObjectFromInstructions(instructions);
+    scene3d.add(object);
+    }
+
     localStorage.setItem('last-loaded', path);
     localStorage.removeItem('last-imported');
   });
@@ -33,26 +64,34 @@ function openGCodeFromPath(path) {
 
 function openGCodeFromText(gcode) {
   $('#openModal').modal('hide');
-  if (object) {
-    scene.remove(object);
+  if (hasGL && object) {
+    scene3d.remove(object);
   }
-  object = createObjectFromGCode(gcode);
-  scene.add(object);
+  
+  instructions = createGeometryFromGCode(gcode);
+  scene2d.add(instructions);
+  
+  if(hasGL){
+  	object = createObjectFromInstructions(instructions);
+  	scene3d.add(object);
+  }	
+
   localStorage.setItem('last-imported', gcode);
   localStorage.removeItem('last-loaded');
 }
 
-
+var hasGL = true;
 $(function() {
 
+
   if (!Modernizr.webgl) {
-    alert('Sorry, you need a WebGL capable browser to use this.\n\nGet the latest Chrome or FireFox.');
-    return;
-  }
+    //alert('Sorry, you need a WebGL capable browser to use this.\n\nGet the latest Chrome or FireFox.');
+    hasGL = false;  
+}
 
   if (!Modernizr.localstorage) {
     alert("Man, your browser is ancient. I can't work with this. Please upgrade.");
-    return;
+    hasGL = false;
   }
 
   // Show 'About' dialog for first time visits.
@@ -79,7 +118,9 @@ $(function() {
     }
   });
 
-  scene = createScene($('#renderArea'));
+  scene2d = new Scene2D($('#renderArea2d'));
+  if(hasGL) scene3d = create3DScene($('#renderArea3d'));
+
   var lastImported = localStorage.getItem('last-imported');
   var lastLoaded = localStorage.getItem('last-loaded');
   if (lastImported) {
@@ -87,5 +128,7 @@ $(function() {
   } else {
     openGCodeFromPath(lastLoaded || 'examples/octocat.gcode');
   }
+  
+  
 });
 

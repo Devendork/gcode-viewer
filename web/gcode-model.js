@@ -1,54 +1,52 @@
-function createObjectFromGCode(gcode) {
+var bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
+
+//we need a function that doesn't return object but has the parsing
+//2D/3D independent
+function createGeometryFromGCode(gcode) {
+  
   // GCode descriptions come from:
   //    http://reprap.org/wiki/G-code
   //    http://en.wikipedia.org/wiki/G-code
   //    SprintRun source code
-	
+  var instructions = [];  
   var lastLine = {x:0, y:0, z:0, e:0, f:0, extruding:false};
  
  	var layers = [];
  	var layer = undefined;
- 	var bbbox = { min: { x:100000,y:100000,z:100000 }, max: { x:-100000,y:-100000,z:-100000 } };
  	
- 	function newLayer(line) {
- 		layer = { type: {}, layer: layers.count(), z: line.z, };
- 		layers.push(layer);
- 	}
- 	function getLineGroup(line) {
- 		if (layer == undefined)
- 			newLayer(line);
- 		var speed = Math.round(line.e / 1000);
- 		var grouptype = (line.extruding ? 10000 : 0) + speed;
- 		var color = new THREE.Color(line.extruding ? 0xffffff : 0x0000ff);
- 		if (layer.type[grouptype] == undefined) {
- 			layer.type[grouptype] = {
- 				type: grouptype,
- 				feed: line.e,
- 				extruding: line.extruding,
- 				color: color,
- 				segmentCount: 0,
- 				material: new THREE.LineBasicMaterial({
-					  opacity:line.extruding ? 0.5 : 0.4,
-					  transparent: true,
-					  linewidth: 1,
-					  vertexColors: THREE.FaceColors }),
-				geometry: new THREE.Geometry(),
-			}
-		}
-		return layer.type[grouptype];
- 	}
- 	function addSegment(p1, p2) {
-		var group = getLineGroup(p2);
-		var geometry = group.geometry;
+	
+	var relative = false;
+  	function delta(v1, v2) {
+		return relative ? v2 : v2 - v1;
+	}
+	function absolute (v1, v2) {
+		return relative ? v1 + v2 : v2;
+	}
+
+
+ 	function addMove(p1, p2, itext) {
 		
-		group.segmentCount++;
-        geometry.vertices.push(new THREE.Vertex(
-            new THREE.Vector3(p1.x, p1.y, p1.z)));
-        geometry.vertices.push(new THREE.Vertex(
-            new THREE.Vector3(p2.x, p2.y, p2.z)));
-        geometry.colors.push(group.color);
-        geometry.colors.push(group.color);
-        if (p2.extruding) {
+		var s = p2.f; //units: mm/min	
+		var e = delta(p1.e, p2.e); //mm's extruded
+		var dx = delta(p2.x, p1.x);
+		var dy = delta(p2.y, p1.y);
+		var dz = delta(p2.z, p1.z);
+		var move_distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+		var instruction = {
+			text: itext,
+			from: p1,
+			to: p2,
+			speed:s,
+		        coords: {dx: dx, dy:dy, dz:dz},	
+			d_traveling: move_distance,
+			d_extruding: e,
+			extruding: (e > 0)
+		}
+
+		instructions.push(instruction);
+		
+		if (e>0) {
 			bbbox.min.x = Math.min(bbbox.min.x, p2.x);
 			bbbox.min.y = Math.min(bbbox.min.y, p2.y);
 			bbbox.min.z = Math.min(bbbox.min.z, p2.z);
@@ -57,14 +55,8 @@ function createObjectFromGCode(gcode) {
 			bbbox.max.z = Math.max(bbbox.max.z, p2.z);
 		}
  	}
-  	var relative = false;
-	function delta(v1, v2) {
-		return relative ? v2 : v2 - v1;
-	}
-	function absolute (v1, v2) {
-		return relative ? v1 + v2 : v2;
-	}
 
+  
   var parser = new GCodeParser({  	
     G1: function(args, line) {
       // Example: G1 Z1.0 F3000
@@ -82,16 +74,18 @@ function createObjectFromGCode(gcode) {
         e: args.e !== undefined ? absolute(lastLine.e, args.e) : lastLine.e,
         f: args.f !== undefined ? absolute(lastLine.f, args.f) : lastLine.f,
       };
-      /* layer change detection is or made by watching Z, it's made by
-         watching when we extrude at a new Z position */
-		if (delta(lastLine.e, newLine.e) > 0) {
-			newLine.extruding = delta(lastLine.e, newLine.e) > 0;
-			if (layer == undefined || newLine.z != layer.z)
-				newLayer(newLine);
-		}
-		addSegment(lastLine, newLine);
+
+      var instruction_text = "G1";
+      if(args.x !== undefined) instruction_text = instruction_text +" X"+args.x;
+      if(args.y !== undefined) instruction_text = instruction_text +" Y"+args.y;
+      if(args.z !== undefined) instruction_text = instruction_text +" Z"+args.z;
+      if(args.f !== undefined) instruction_text = instruction_text +" F"+args.f;
+      if(args.e !== undefined) instruction_text = instruction_text +" E"+args.e;
+ 	
+      addMove(lastLine, newLine, instruction_text);
       lastLine = newLine;
-    },
+
+     },
 
     G21: function(args) {
       // G21: Set Units to Millimeters
@@ -161,21 +155,78 @@ function createObjectFromGCode(gcode) {
   });
 
   parser.parse(gcode);
+  console.log("bbox ", bbbox);
+  return instructions;
+  }
 
-	console.log("Layer Count ", layers.count());
+function createObjectFromInstructions(instructions) {
+ 
+ 	var layers = [];
+ 	var layer = undefined;
+ 
+
+ 	function newLayer(line) {
+ 		layer = { type: {}, layer: layers.count(), z: line.z, };
+ 		layers.push(layer);
+ 	}
+ 	function getLineGroup(line) {
+ 		if (layer == undefined)
+ 			newLayer(line);
+ 		var grouptype = (line.extruding ? 10000 : 0) + line.speed;
+ 		var color = new THREE.Color(line.extruding ? 0xffffff : 0x0000ff);
+ 		if (layer.type[grouptype] == undefined) {
+			layer.type[grouptype] = {
+ 				type: grouptype,
+ 				feed: line.e,	
+ 				extruding: line.extruding,
+ 				color: color,
+ 				segmentCount: 0,
+ 				material: new THREE.LineBasicMaterial({
+					  opacity:line.extruding ? 0.5 : 0.4,
+					  transparent: true,
+					  linewidth: 1,
+					  vertexColors: THREE.FaceColors }),
+				geometry: new THREE.Geometry(),
+			}
+		}
+		return layer.type[grouptype];
+ 	}
+ 	function addSegment(p1, p2) {
+		var group = getLineGroup(p2);
+		var geometry = group.geometry;
+
+			
+		group.segmentCount++;
+        	geometry.vertices.push(new THREE.Vertex(
+            new THREE.Vector3(p1.x, p1.y, p1.z)));
+        	geometry.vertices.push(new THREE.Vertex(
+            new THREE.Vector3(p2.x, p2.y, p2.z)));
+        	geometry.colors.push(group.color);
+        	geometry.colors.push(group.color);
+	}
+  
+  
+	for(var i in instructions){
+	var p1 = i.p1;
+	var p2 = i.p2;
+      	if(i.extruding){
+		if(layer == undefined || p2.z != p1.z) newLayer(p2);
+	}
+	addSegment(p1, p2);
+      }
+       
+
+  console.log("Layer Count ", layers.count());
 
   var object = new THREE.Object3D();
 	
 	for (var lid in layers) {
 		var layer = layers[lid];
-//		console.log("Layer ", layer.layer);
 		for (var tid in layer.type) {
 			var type = layer.type[tid];
-//			console.log("Layer ", layer.layer, " type ", type.type, " seg ", type.segmentCount);
 		  object.add(new THREE.Line(type.geometry, type.material, THREE.LinePieces));
 		}
 	}
-	console.log("bbox ", bbbox);
 
   // Center
   var scale = 3; // TODO: Auto size
