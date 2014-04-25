@@ -1,5 +1,5 @@
-
 function Scene2D(element){
+	this.element = element;
 	this.step = 0;
 	this.scale = 1; 
 	this.w = element.width();
@@ -7,11 +7,16 @@ function Scene2D(element){
 	this.instructions = [];
 	this.draw = SVG('renderArea2d');
 	this.circle = this.draw.circle(10).attr({fill:'#fff'});
-	this.line = this.draw.line(0,0,1,1).attr({'stroke-width':10, stroke: '#666'});
+	this.line = this.draw.line(0,0,1,1);
 	this.path = [];
 	this.polyline= this.draw.polyline('0,0 1,1').attr({'stroke-width':10, stroke: '#333'});
+	this.text = this.draw.text("sample");
+	this.margin = 40;
+
 }
 
+Scene2D.prototype.element = null;
+Scene2D.prototype.margin = 40;
 Scene2D.prototype.step = 0;
 Scene2D.prototype.scale= 1;
 Scene2D.prototype.w= 1;
@@ -22,6 +27,48 @@ Scene2D.prototype.circle= null;
 Scene2D.prototype.line = null;
 Scene2D.prototype.polyline = null;
 Scene2D.prototype.path = [];
+Scene2D.prototype.text = null;
+
+Scene2D.prototype.resize = function(){
+		//undo old scaleing
+		var offset_x = -bbbox.min.x + ((this.w - sx*this.scale)/2);
+		var offset_y = -bbbox.min.y + ((this.h - sy*this.scale)/2);
+		
+		this.line.translate(-offset_x, -offset_y);
+		this.line.scale(1/this.scale, 1/this.scale);
+		this.circle.translate(-offset_x, -offset_y);
+		this.polyline.translate(-offset_x, -offset_y);
+		this.polyline.scale(1/this.scale, 1/this.scale);
+	
+		//calculate new vars
+		this.w = this.element.width();
+		this.h = this.element.height();
+		
+		var sx = bbbox.max.x - bbbox.min.x;
+		var sy = bbbox.max.y - bbbox.min.y;
+
+		console.log("scale x, y"+sx+" : "+sy);
+
+		box_factor = (sx > sy ) ? sy : sx;
+		window_factor = (this.w > this.h) ? this.h : this.w;
+		console.log("boxfactor "+box_factor+" window factor"+window_factor);
+
+		this.scale = (window_factor-this.margin*2) / box_factor; 
+		
+		offset_x = -bbbox.min.x + ((this.w - sx*this.scale)/2);
+		offset_y = -bbbox.min.y + ((this.h - sy*this.scale)/2);
+		
+		this.line.translate(offset_x, offset_y);
+		this.line.scale(this.scale, this.scale);
+		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
+		this.circle.translate(offset_x, offset_y);
+		this.polyline.translate(offset_x, offset_y);
+		this.polyline.scale(this.scale, this.scale);
+		this.polyline.attr({'stroke-width':2/this.scale, stroke: '#333'});
+
+		this.drawStep();
+ 
+}
 
 
 Scene2D.prototype.add =function(instructions){
@@ -34,13 +81,30 @@ Scene2D.prototype.add =function(instructions){
 
 		console.log("scale x, y"+sx+" : "+sy);
 
-		box_factor = (sx > sy ) ? sx : sy;
-		window_factor = (this.w > this.h) ? this.w : this.h;
+		box_factor = (sx > sy ) ? sy : sx;
+		window_factor = (this.w > this.h) ? this.h : this.w;
 		console.log("boxfactor "+box_factor+" window factor"+window_factor);
 
-		this.scale = window_factor / box_factor; 
+		this.scale = (window_factor-this.margin*2) / box_factor; 
+		
+		var offset_x = -bbbox.min.x + ((this.w - sx*this.scale)/2);
+		var offset_y = -bbbox.min.y + ((this.h - sy*this.scale)/2);
+
+		this.text.center(this.w/2, this.h - this.margin/2);
+
+		
+		this.line.translate(offset_x, offset_y);
+		this.line.scale(this.scale, this.scale);
+		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
+		this.circle.translate(offset_x, offset_y);
+		this.polyline.translate(offset_x, offset_y);
+		this.polyline.scale(this.scale, this.scale);
+		this.polyline.attr({'stroke-width':2/this.scale, stroke: '#333'});
+
 		this.drawStep();
 }
+
+
 
 Scene2D.prototype.nextStep = function(){
 	if(this.step < instructions.count()) this.step++; 
@@ -53,43 +117,44 @@ Scene2D.prototype.prevStep= function(){
 }
 
 Scene2D.prototype.drawStep=function(){
-		console.log("drawing step "+this.step+" at scale "+this.scale);
-		if(instructions && instructions.count() > 0){
-		var i = instructions[this.step];
-		console.log(i);
 		
-		$("#itext").text(i.text);
+	if(instructions && instructions.count() > 0){
+		
+		var i = instructions[this.step];
+		
+		if(i.coords.dz != 0) this.path = [];
 
-		var offset = {
-			x1: (i.from.x)*this.scale- bbbox.min.x,
-			y1: (i.from.y)*this.scale- bbbox.min.y,
-			x2: (i.to.x)*this.scale- bbbox.min.x,
-			y2: (i.to.y)*this.scale-bbbox.min.y
+		if(i.extruding){
+			if(this.path.count() == 0) this.path.push(i.from.x+","+i.from.y);
+			this.path.push(i.to.x+","+i.to.y);
 		}
 
-		//delete the polyline at each new layer
-		if(i.coords.dz > 0) this.path = [];
-
-		if(this.path.count() == 0) this.path.push(offset.x1+","+offset.y1);
-		this.path.push(offset.x2+","+offset.y2);
-
 		var polylist = this.path.join(" ");
-		console.log(polylist);
 
-		console.log(offset);
-		this.line.plot(offset.x1, offset.y1, offset.x2, offset.y2);
-		
-		var anitime = i.d_traveling * (20);
+		var anitime = i.d_traveling * (20); //20ms/mm
 
-		(i.etruding)? this.circle.attr({fill: "#00ff00"}) :this.circle.attr({fill: "#ff0000"});
-		this.circle.animate(anitime).move(offset.x2-10, offset.y2-10);
+		this.line.plot(i.from.x, i.from.y, i.to.x, i.to.y);
+
+		(i.extruding)? this.circle.attr({fill: '#0f0'}) :this.circle.attr({fill: '#f00'});
+		this.circle.animate(anitime).center(i.to.x*this.scale,i.to.y*this.scale);
 		this.circle.front();
 		
 		this.polyline.plot(polylist);
 		this.polyline.back();
 
+		this.text.attr({fill: '#999'});
+		this.text.text(i.text);
+		this.text.front();
+		this.text.center(this.w/2, this.h - this.margin/2);
+
+		}else{
+		this.text.clear();
 		}
-}	
+}
+
+	
+
+
 
 function create3DScene(element) {
 
@@ -151,4 +216,6 @@ function create3DScene(element) {
 
   return scene3d;
 }
+
+
 

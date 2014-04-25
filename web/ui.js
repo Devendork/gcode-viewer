@@ -100,6 +100,12 @@ $(function() {
     setTimeout(about, 500);
   }
 
+  $(window).resize(function(){
+	alert("resize");
+	scene2d.resize();
+   });
+
+
   // Drop files from desktop onto main page to import them.
   $('body').on('dragover', function(event) {
     event.stopPropagation();

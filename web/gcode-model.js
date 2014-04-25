@@ -30,7 +30,7 @@ function createGeometryFromGCode(gcode) {
 		var e = delta(p1.e, p2.e); //mm's extruded
 		var dx = delta(p2.x, p1.x);
 		var dy = delta(p2.y, p1.y);
-		var dz = delta(p2.z, p1.z);
+		var dz = delta(p1.z, p2.z);
 		var move_distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
 		var instruction = {
