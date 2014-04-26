@@ -1,0 +1,6 @@
+...figue out how to fix paths to accomodate thicker, more coarse paths. 
+.....split to layers, do a closest point operation on end points
+.....merge to outer point while < threshold
+
+...input to specify width and height parameters. 
+...if layers are within a certain distance - than just 
