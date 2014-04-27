@@ -37,6 +37,13 @@ function checkKey(e){
 		    //right arrow
 		scene2d.nextStep();	
 	}
+	else if(e.keyCode == '38'){
+		//up arrow
+		scene2d.nextLayer();
+	}else if(e.keyCode == '40'){
+		//down arrow
+		scene2d.prevLayer();
+	}
 
 }
 

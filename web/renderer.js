@@ -1,5 +1,6 @@
 function Scene2D(element){
 	this.element = element;
+	this.layer = 0;
 	this.step = 0;
 	this.scale = 1; 
 	this.w = element.width();
@@ -14,8 +15,15 @@ function Scene2D(element){
 	this.margin = 40;
 	this.offset = [];
 
+	var that = this;
+
+	$(window).on('resize', function(){
+		that.resize();
+	});
+
 }
 
+Scene2D.prototype.layer = 0;
 Scene2D.prototype.offset = [];
 Scene2D.prototype.polylines = [];
 Scene2D.prototype.element = null;
@@ -34,6 +42,7 @@ Scene2D.prototype.text = null;
 
 Scene2D.prototype.add =function(instructions){
 		this.step = 0;
+		this.layer = 0;
 		this.instructions = instructions;	
 
 		//scale by bounding box
@@ -56,15 +65,89 @@ Scene2D.prototype.add =function(instructions){
 		this.drawStep();
 }
 
+Scene2D.prototype.resize =function(instructions){
 
+	///reset model->scene parameters
+	if(this.line != null){
+		this.line.translate(-this.offset.x, -this.offset.y);
+		this.line.scale(1/this.scale, 1/this.scale);
+
+	}
+	if(this.circle != null) this.circle.translate(-this.offset.x, -this.offset.y);
+	
+	if(this.polylines.count() > 0){
+		for(var i in this.polylines){
+		var pl = this.polylines[i];
+		pl.translate(-this.offset.x, -this.offset.y);
+		pl.scale(1/this.scale, 1/this.scale);
+		}
+	}
+
+	this.w = this.element.width();
+	this.h = this.element.height();
+
+	//scale by bounding box
+	var sx = bbbox.max.x - bbbox.min.x;
+	var sy = bbbox.max.y - bbbox.min.y;
+
+
+	box_factor = (sx > sy ) ? sy : sx;
+	window_factor = (this.w > this.h) ? this.h : this.w;
+
+	this.scale = (window_factor-this.margin*2) / box_factor; 		
+	this.offset = {x:-bbbox.min.x + ((this.w - sx*this.scale)/2),
+				y:-bbbox.min.y + ((this.h - sy*this.scale)/2)};
+		
+	if(this.line != null){
+		this.line.translate(this.offset.x, this.offset.y);
+		this.line.scale(this.scale, this.scale);
+		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
+	}
+	
+	if(this.circle != null) this.circle.translate(this.offset.x, this.offset.y);
+
+	if(this.polylines.count() > 0){
+		for(var i in this.polylines){
+			var pl = this.polylines[i];
+			pl.translate(this.offset.x, this.offset.y);
+			pl.scale(this.scale, this.scale);
+			pl.attr({'stroke-width':2/this.scale, stroke: '#333'});
+		}
+	}
+	this.drawStep();
+}
+
+
+
+
+Scene2D.prototype.nextLayer = function(){
+	console.log("next layer");
+	if(this.layer < this.instructions.count()){
+	       	this.layer++;
+		this.step = 0;
+	}
+	this.drawStep();
+}
+
+
+Scene2D.prototype.prevLayer= function(){
+	console.log("prev layer");
+	if(this.layer > 0){
+		this.layer--;
+		this.step = 0;
+	}
+	this.drawStep();
+}
 
 Scene2D.prototype.nextStep = function(){
-	if(this.step < instructions.count()) this.step++; 
+	if(this.step < this.instructions[this.layer].count()) this.step++; 
+	else this.nextLayer();
 	this.drawStep();
 }
 
 Scene2D.prototype.prevStep= function(){
 		if(this.step > 0) this.step--;
+		else this.prevLayer();
 		this.drawStep();
 }
 
@@ -99,19 +182,18 @@ Scene2D.prototype.drawStep=function(){
 		if(this.circle == null) this.circle = create_circle(this);
 		
 
-		var i = instructions[this.step];
-		var li = (this.step > 0) ? instructions[this.step -1]: i;
-		
-		if(i.coords.dz != 0){
+		var i = instructions[this.layer][this.step];
+		var li = (this.step > 0) ? instructions[this.layer][this.step -1]: i;
+		if(this.step == 0){
 			this.path = [];
 			for(var p in this.polylines){
 			   this.polylines[p].remove();
 			}
+			this.polylines = [];
 		}
 
 		if(i.extruding){
 			if(this.path.count() == 0 || !li.extruding){
-				//create the first polyline of the layer
 				 this.path.push([]);
 				 this.path[this.path.count() -1].push(i.from.x+","+i.from.y);
 				 this.polylines.push(create_polyline(this));  
@@ -127,8 +209,8 @@ Scene2D.prototype.drawStep=function(){
 
 		var anitime = i.d_traveling * (20); //20ms/mm
 
+		console.log(this.polylines.count());
 		for(var pl in this.polylines){		
-			console.log(pl);
 			this.polylines[pl].plot(polylist[pl]);
 		}
 		
@@ -141,7 +223,7 @@ Scene2D.prototype.drawStep=function(){
 	
 
 		this.text.attr({fill: '#999'});
-		this.text.text(i.text);
+		this.text.text("layer: "+this.layer+"/"+this.instructions.count()+"\n "+i.text);
 		this.text.front();
 		this.text.center(this.w/2, this.h - this.margin/2);
 

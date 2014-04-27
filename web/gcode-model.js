@@ -8,7 +8,7 @@ function createGeometryFromGCode(gcode) {
   //    http://reprap.org/wiki/G-code
   //    http://en.wikipedia.org/wiki/G-code
   //    SprintRun source code
-  var instructions = [];  
+  var instructions = []; //instructions by layer  
   var lastLine = {x:0, y:0, z:0, e:0, f:0, extruding:false};
  
  	var layers = [];
@@ -44,7 +44,11 @@ function createGeometryFromGCode(gcode) {
 			extruding: (e > 0)
 		}
 
-		instructions.push(instruction);
+		if(instructions.count() == 0 || instruction.coords.dz > 0){
+			instructions.push([]); //create a new layer of instructions	
+		}
+
+		instructions[instructions.count()-1].push(instruction);
 		
 		if (e>0) {
 			bbbox.min.x = Math.min(bbbox.min.x, p2.x);
