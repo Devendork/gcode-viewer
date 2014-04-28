@@ -1,25 +1,12 @@
-GCode Viewer
+Step by Step 3D Printing Visualizer
 ============
 
-A web-based 3D viewer for [GCode](http://en.wikipedia.org/wiki/G-code) files.
+A web-based 3D viewer for [GCode](http://en.wikipedia.org/wiki/G-code) files. This allows you to 
+view the actions a 3D printer will take instruction by instruction, layer by layer based on input
+from a G-code file. 
 
-Built using WebGL and [three.js](https://github.com/mrdoob/three.js/).
+Built using WebGL, [three.js](https://github.com/mrdoob/three.js/), and [svg.js](https://github.com/wout/svg.js).
 
-![Screenshot](https://github.com/joewalnes/gcode-viewer/raw/master/screenshots/octocat1.png)
+Modified from [Joe Walnes G-Code Viewer] (http://gcode.joewalnes.com/)
 
-Use it
-------
-
-* http://gcode.joewalnes.com/
-
-To learn more, read my blog post:
-
-* http://joewalnes.com/2012/04/01/a-3d-webgl-gcode-viewer-for-understanding-3d-printers/
-
-Open sourced under MIT license.
-
--Joe Walnes
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/joewalnes/gcode-viewer/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
 
