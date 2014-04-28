@@ -7,8 +7,10 @@ function Scene2D(element){
 	this.h = element.height();
 	this.instructions = [];
 	this.draw = SVG('renderArea2d');
+	this.group= this.draw.group();
 	this.path = [];
 	this.polylines= [];
+	this.ghost_polylines = [];
 	this.circle = null;
 	this.line = null;
 	this.text = this.draw.text("sample");
@@ -23,9 +25,11 @@ function Scene2D(element){
 
 }
 
+Scene2D.prototype.group = null;
 Scene2D.prototype.layer = 0;
 Scene2D.prototype.offset = [];
 Scene2D.prototype.polylines = [];
+Scene2D.prototype.ghost_polylines = [];
 Scene2D.prototype.element = null;
 Scene2D.prototype.margin = 40;
 Scene2D.prototype.step = 0;
@@ -38,6 +42,73 @@ Scene2D.prototype.circle= null;
 Scene2D.prototype.line = null;
 Scene2D.prototype.path = [];
 Scene2D.prototype.text = null;
+
+Scene2D.prototype.clearLayerPaths = function(){
+	for(var i in this.polylines){
+		this.polylines[i].remove();
+	}
+	this.polylines = [];
+	this.path = [];
+
+	for(var i in this.ghost_polylines){
+		this.ghost_polylines[i].remove();
+	}
+	this.ghost_polylines = [];
+
+}
+
+Scene2D.prototype.addLayerPaths = function(){
+	var last = null;
+	var inst = null;
+	for(var i in this.instructions[this.layer]){
+		inst = this.instructions[this.layer][i];
+		this.addPath(inst, last);
+		last = inst;		
+	}
+}
+
+Scene2D.prototype.addPath= function(inst,last){
+	if(inst.extruding){
+		if (last == null || !last.extruding){
+			var np = [];
+			np.push(inst.from.x+","+inst.from.y);
+			this.path.push(np);
+			this.polylines.push(this.createPolyline());
+		}
+		this.path[this.path.count()-1].push(inst.to.x+","+inst.to.y);
+	}
+
+}
+
+Scene2D.prototype.removePath = function(inst){
+	if(inst.extruding){
+		var last_ndx = this.path.count() -1;
+		this.path[last_ndx].pop();
+		
+		//if there is only one item left than this inst represeents 
+		//the first segment in a polyline, delete the whole path
+		if(this.path[last_ndx].count() == 1){
+			this.path.pop(); 
+			var pl = this.polylines.pop();
+			pl.remove();
+		}
+	}
+}
+
+Scene2D.prototype.createPolyline = function(){
+	var pl = this.draw.polyline();
+	pl.attr({'stroke-width':2/this.scale, stroke: '#333'});
+	pl.fill('none');
+	this.group.add(pl);
+	return pl;	
+}
+
+
+
+Scene2D.prototype.popPathItem = function(){
+	this.path[this.path.count()-1].pop();
+}
+
 
 
 Scene2D.prototype.add =function(instructions){
@@ -54,33 +125,35 @@ Scene2D.prototype.add =function(instructions){
 		box_factor = (sx > sy ) ? sy : sx;
 		window_factor = (this.w > this.h) ? this.h : this.w;
 		console.log("boxfactor "+box_factor+" window factor"+window_factor);
+		
 
 		this.scale = (window_factor-this.margin*2) / box_factor; 		
+		console.log("scale: "+this.scale);
 
 		this.offset = {x:-bbbox.min.x + ((this.w - sx*this.scale)/2),
 				y:-bbbox.min.y + ((this.h - sy*this.scale)/2)};
 		
 		this.text.center(this.w/2, this.h - this.margin/2);
 
-		this.drawStep();
+		if(this.line != null) this.line.remove();
+		if(this.circle != null) this.circle.remove();
+
+		//create scene elements
+		this.line = this.group.line(0,0,0,0);
+		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
+		this.circle = this.group.circle(10/this.scale).fill('#000');
+		this.group.translate(this.offset.x, this.offset.y);
+		this.group.scale(this.scale, this.scale);
+	
+		this.clearLayerPaths();
+		this.drawStep({fwd: true, reset:true});
 }
 
 Scene2D.prototype.resize =function(instructions){
 
-	///reset model->scene parameters
-	if(this.line != null){
-		this.line.translate(-this.offset.x, -this.offset.y);
-		this.line.scale(1/this.scale, 1/this.scale);
-
-	}
-	if(this.circle != null) this.circle.translate(-this.offset.x, -this.offset.y);
-	
-	if(this.polylines.count() > 0){
-		for(var i in this.polylines){
-		var pl = this.polylines[i];
-		pl.translate(-this.offset.x, -this.offset.y);
-		pl.scale(1/this.scale, 1/this.scale);
-		}
+	if(this.group != null){
+		this.group.translate(-this.offset.x, -this.offset.y);
+		this.group.scale(1/this.scale, 1/this.scale);
 	}
 
 	this.w = this.element.width();
@@ -97,108 +170,74 @@ Scene2D.prototype.resize =function(instructions){
 	this.scale = (window_factor-this.margin*2) / box_factor; 		
 	this.offset = {x:-bbbox.min.x + ((this.w - sx*this.scale)/2),
 				y:-bbbox.min.y + ((this.h - sy*this.scale)/2)};
-		
-	if(this.line != null){
-		this.line.translate(this.offset.x, this.offset.y);
-		this.line.scale(this.scale, this.scale);
-		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
-	}
-	
-	if(this.circle != null) this.circle.translate(this.offset.x, this.offset.y);
 
-	if(this.polylines.count() > 0){
-		for(var i in this.polylines){
-			var pl = this.polylines[i];
-			pl.translate(this.offset.x, this.offset.y);
-			pl.scale(this.scale, this.scale);
-			pl.attr({'stroke-width':2/this.scale, stroke: '#333'});
-		}
-	}
-	this.drawStep();
+	this.group.translate(this.offset.x, this.offset.y);
+	this.group.scale(this.scale, this.scale);
+	this.drawStep({fwd:true, reset:true});
 }
 
 
-
-
 Scene2D.prototype.nextLayer = function(){
-	console.log("next layer");
-	if(this.layer < this.instructions.count()){
+	this.clearLayerPaths();
+	if(this.layer < this.instructions.count()-1){
 	       	this.layer++;
 		this.step = 0;
 	}
-	this.drawStep();
+	this.drawStep({fwd: true, reset:false});
 }
 
 
 Scene2D.prototype.prevLayer= function(){
-	console.log("prev layer");
+	this.clearLayerPaths();
 	if(this.layer > 0){
 		this.layer--;
 		this.step = 0;
 	}
-	this.drawStep();
+	this.drawStep({fwd:true, reset:false});
+
 }
 
 Scene2D.prototype.nextStep = function(){
-	if(this.step < this.instructions[this.layer].count()) this.step++; 
-	else this.nextLayer();
-	this.drawStep();
+
+	if(this.step < this.instructions[this.layer].count()-1){
+		this.step++; 
+		this.drawStep({fwd:true, reset:false});
+
+	}else{
+		this.clearLayerPaths();
+		this.step = 0;
+		if(this.layer < this.instructions.count()-1) this.layer++;
+		this.drawStep({fwd:true, reset:false});
+	}
+
 }
 
 Scene2D.prototype.prevStep= function(){
-		if(this.step > 0) this.step--;
-		else this.prevLayer();
-		this.drawStep();
+	if(this.step > 0){ 
+		this.step--;
+		this.drawStep({fwd: false, reset:false});
+
+	}else{
+	 	if(this.layer > 0) this.layer--;
+		this.addLayerPaths();
+		this.step = this.instructions[this.layer].count() -1;
+		this.drawStep({fwd: false, reset:false});
+	}
 }
 
-Scene2D.prototype.drawStep=function(){
-
-	function create_line(p){
-		var l = p.draw.line(0,0,0,0);
-			l.translate(p.offset.x, p.offset.y);
-			l.scale(p.scale, p.scale);
-			l.attr({'stroke-width':5/p.scale, stroke: '#666'});
-			return l;
-	}
-
-	function create_circle(p){
-		var c = p.draw.circle(10);
-		c.translate(p.offset.x, p.offset.y);
-		return c;
-	}
-
-	function create_polyline(p){
-		var pl = p.draw.polyline();
-		pl.translate(p.offset.x, p.offset.y);
-		pl.scale(p.scale, p.scale);
-		pl.attr({'stroke-width':2/p.scale, stroke: '#333'});
-		pl.fill('none');
-		return pl;
-	}
+/***
+inc - {next: true/false, forward: true/false, new_layer: true/false}
+*/
+Scene2D.prototype.drawStep=function(cause){
 
 	if(instructions && instructions.count() > 0){
 	
-		if(this.line == null) this.line = create_line(this);
-		if(this.circle == null) this.circle = create_circle(this);
-		
-
 		var i = instructions[this.layer][this.step];
-		var li = (this.step > 0) ? instructions[this.layer][this.step -1]: i;
-		if(this.step == 0){
-			this.path = [];
-			for(var p in this.polylines){
-			   this.polylines[p].remove();
-			}
-			this.polylines = [];
-		}
-
-		if(i.extruding){
-			if(this.path.count() == 0 || !li.extruding){
-				 this.path.push([]);
-				 this.path[this.path.count() -1].push(i.from.x+","+i.from.y);
-				 this.polylines.push(create_polyline(this));  
-			}
-	 		this.path[this.path.count()-1].push(i.to.x+","+i.to.y);
+		var li = (this.step > 0) ? instructions[this.layer][this.step-1]: null;
+		
+		if(!cause.reset){
+			if(cause.fwd) this.addPath(i, li);
+			else this.removePath(i); 
 		}
 
 		var polylist = [];
@@ -206,10 +245,8 @@ Scene2D.prototype.drawStep=function(){
 			polylist.push(this.path[p].join(" "));
 		}
 
-
 		var anitime = i.d_traveling * (20); //20ms/mm
 
-		console.log(this.polylines.count());
 		for(var pl in this.polylines){		
 			this.polylines[pl].plot(polylist[pl]);
 		}
@@ -218,7 +255,8 @@ Scene2D.prototype.drawStep=function(){
 		this.line.front();
 
 		(i.extruding)? this.circle.attr({fill: '#0f0'}) :this.circle.attr({fill: '#f00'});
-		this.circle.animate(anitime).center(i.to.x*this.scale,i.to.y*this.scale);
+		if(cause.reset) this.circle.center(i.to.x,i.to.y);
+		else this.circle.animate(anitime).center(i.to.x,i.to.y);
 		this.circle.front();
 	
 

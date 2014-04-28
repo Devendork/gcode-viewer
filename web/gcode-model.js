@@ -4,6 +4,7 @@ var bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000
 //2D/3D independent
 function createGeometryFromGCode(gcode) {
   
+bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
   // GCode descriptions come from:
   //    http://reprap.org/wiki/G-code
   //    http://en.wikipedia.org/wiki/G-code
@@ -50,14 +51,14 @@ function createGeometryFromGCode(gcode) {
 
 		instructions[instructions.count()-1].push(instruction);
 		
-		if (e>0) {
+		//if (e>0) {
 			bbbox.min.x = Math.min(bbbox.min.x, p2.x);
 			bbbox.min.y = Math.min(bbbox.min.y, p2.y);
 			bbbox.min.z = Math.min(bbbox.min.z, p2.z);
 			bbbox.max.x = Math.max(bbbox.max.x, p2.x);
 			bbbox.max.y = Math.max(bbbox.max.y, p2.y);
 			bbbox.max.z = Math.max(bbbox.max.z, p2.z);
-		}
+		//}
  	}
 
   
