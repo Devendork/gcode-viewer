@@ -9,6 +9,7 @@ function Scene2D(element){
 	this.draw = SVG('renderArea2d');
 	this.group= this.draw.group();
 	this.path = [];
+	this.ghost_path = [];
 	this.polylines= [];
 	this.ghost_polylines = [];
 	this.circle = null;
@@ -29,6 +30,7 @@ Scene2D.prototype.group = null;
 Scene2D.prototype.layer = 0;
 Scene2D.prototype.offset = [];
 Scene2D.prototype.polylines = [];
+Scene2D.prototype.ghost_paths = [];
 Scene2D.prototype.ghost_polylines = [];
 Scene2D.prototype.element = null;
 Scene2D.prototype.margin = 40;
@@ -54,26 +56,63 @@ Scene2D.prototype.clearLayerPaths = function(){
 		this.ghost_polylines[i].remove();
 	}
 	this.ghost_polylines = [];
+	this.ghost_path = [];
 
 }
 
+Scene2D.prototype.addGhostPaths = function(){
+	var last = null;
+	var inst = null;	
+
+	for(var i in this.instructions[this.layer]){
+		inst = this.instructions[this.layer][i];
+		this.addGhostPath(inst, last);
+		last = inst;		
+	}
+	
+	var g_polylist = [];
+	for(var g in this.ghost_path){
+		g_polylist.push(this.ghost_path[g].join(" "));
+	}
+
+	//draw them to screen
+	for(var gpl in this.ghost_polylines){		
+		this.ghost_polylines[gpl].plot(g_polylist[gpl]);
+	}
+}
+
+
 Scene2D.prototype.addLayerPaths = function(){
 	var last = null;
-	var inst = null;
+	var inst = null;	
+
 	for(var i in this.instructions[this.layer]){
 		inst = this.instructions[this.layer][i];
 		this.addPath(inst, last);
 		last = inst;		
 	}
+
 }
 
+Scene2D.prototype.addGhostPath= function(inst,last){
+	if(inst.extruding){
+		if (last == null || !last.extruding){
+			var np = [];
+			np.push(inst.from.x+","+inst.from.y);
+			this.ghost_path.push(np);
+			this.ghost_polylines.push(this.createPolyline(true));
+		}
+		this.ghost_path[this.ghost_path.count()-1].push(inst.to.x+","+inst.to.y);
+	}
+
+}
 Scene2D.prototype.addPath= function(inst,last){
 	if(inst.extruding){
 		if (last == null || !last.extruding){
 			var np = [];
 			np.push(inst.from.x+","+inst.from.y);
 			this.path.push(np);
-			this.polylines.push(this.createPolyline());
+			this.polylines.push(this.createPolyline(false));
 		}
 		this.path[this.path.count()-1].push(inst.to.x+","+inst.to.y);
 	}
@@ -95,9 +134,10 @@ Scene2D.prototype.removePath = function(inst){
 	}
 }
 
-Scene2D.prototype.createPolyline = function(){
+Scene2D.prototype.createPolyline = function(ghost){
 	var pl = this.draw.polyline();
-	pl.attr({'stroke-width':2/this.scale, stroke: '#333'});
+	if(!ghost) pl.attr({'stroke-width':2/this.scale, stroke: '#999'});
+	else pl.attr({'stroke-width':2/this.scale, stroke: '#333'});
 	pl.fill('none');
 	this.group.add(pl);
 	return pl;	
@@ -146,6 +186,7 @@ Scene2D.prototype.add =function(instructions){
 		this.group.scale(this.scale, this.scale);
 	
 		this.clearLayerPaths();
+		this.addGhostPaths();
 		this.drawStep({fwd: true, reset:true});
 }
 
@@ -183,6 +224,7 @@ Scene2D.prototype.nextLayer = function(){
 	       	this.layer++;
 		this.step = 0;
 	}
+	this.addGhostPaths();
 	this.drawStep({fwd: true, reset:false});
 }
 
@@ -193,6 +235,7 @@ Scene2D.prototype.prevLayer= function(){
 		this.layer--;
 		this.step = 0;
 	}
+	this.addGhostPaths();
 	this.drawStep({fwd:true, reset:false});
 
 }
@@ -207,6 +250,7 @@ Scene2D.prototype.nextStep = function(){
 		this.clearLayerPaths();
 		this.step = 0;
 		if(this.layer < this.instructions.count()-1) this.layer++;
+		this.addGhostPaths();
 		this.drawStep({fwd:true, reset:false});
 	}
 
@@ -218,7 +262,11 @@ Scene2D.prototype.prevStep= function(){
 		this.drawStep({fwd: false, reset:false});
 
 	}else{
-	 	if(this.layer > 0) this.layer--;
+	 	if(this.layer > 0){
+			this.clearLayerPaths();
+			this.layer--;
+		}
+		this.addGhostPaths();
 		this.addLayerPaths();
 		this.step = this.instructions[this.layer].count() -1;
 		this.drawStep({fwd: false, reset:false});
@@ -244,15 +292,14 @@ Scene2D.prototype.drawStep=function(cause){
 		for(var p in this.path){
 			polylist.push(this.path[p].join(" "));
 		}
-
+	
 		var anitime = i.d_traveling * (20); //20ms/mm
-
 		for(var pl in this.polylines){		
 			this.polylines[pl].plot(polylist[pl]);
 		}
-		
-		this.line.plot(i.from.x, i.from.y, i.to.x, i.to.y);
-		this.line.front();
+
+		//this.line.plot(i.from.x, i.from.y, i.to.x, i.to.y);
+		//this.line.front();
 
 		(i.extruding)? this.circle.attr({fill: '#0f0'}) :this.circle.attr({fill: '#f00'});
 		if(cause.reset) this.circle.center(i.to.x,i.to.y);
@@ -261,7 +308,8 @@ Scene2D.prototype.drawStep=function(cause){
 	
 
 		this.text.attr({fill: '#999'});
-		this.text.text("layer: "+this.layer+"/"+this.instructions.count()+"\n "+i.text);
+		this.text.text(i.text+"\nlayer: "+(this.layer+1)+" of "+this.instructions.count()+
+					" // instruction: "+(this.step+1)+" of "+this.instructions[this.layer].count());
 		this.text.front();
 		this.text.center(this.w/2, this.h - this.margin/2);
 
