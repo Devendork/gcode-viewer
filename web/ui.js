@@ -26,20 +26,25 @@ var object = null;
 var plane = null;
 
 function createPlane(){
-  	var material = new THREE.MeshBasicMaterial( {color: 0xffff00, side: THREE.DoubleSide} );
+	var z;
+	if(instructions != null){
+		var i = instructions[0][0];
+		z = i.to.z;
+	}else z = 0;
+
+
+  	var material = new THREE.MeshBasicMaterial( {color: 0x00FBFF, transparant:true, opacity: 0.2, side: THREE.DoubleSide} );
 	var geometry = new THREE.PlaneGeometry(ebbox.max.x - ebbox.min.x, ebbox.max.y - ebbox.min.y);
 
 	plane = new THREE.Mesh( geometry, material );
 	
 	var center = new THREE.Vector3(
   		ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
-  		ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
-  		ebbox.min.z + ((ebbox.max.z - ebbox.min.z) / 2));
+  		ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2), 
+		z);
   
 	plane.position = center;
-	object.add(plane);
-	
-
+	object.add(plane);	
 }
 
 
@@ -49,7 +54,7 @@ function checkKey(e){
     e = e || window.event;
     if (e.keyCode == '37') {
 		    // left arrow
-		   scene2d.prevStep(); 
+		   scene2d.prevStep();
 		}
 	else if (e.keyCode == '39') {
 		    //right arrow
@@ -92,7 +97,7 @@ function openGCodeFromText(gcode) {
   $('#openModal').modal('hide');
   if (hasGL && object) {
     scene3d.remove(object);
-  }
+    }
   
   instructions = createGeometryFromGCode(gcode);
   scene2d.add(instructions);

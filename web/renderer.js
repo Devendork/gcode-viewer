@@ -173,7 +173,7 @@ Scene2D.prototype.add =function(instructions){
 		this.offset = {x:-bbbox.min.x + ((this.w - sx*this.scale)/2),
 				y:-bbbox.min.y + ((this.h - sy*this.scale)/2)};
 		
-		this.text.center(this.w/2, this.h - this.margin/2);
+		this.text.center(this.w/2, this.h - 2*this.margin/3);
 
 		if(this.line != null) this.line.remove();
 		if(this.circle != null) this.circle.remove();
@@ -217,26 +217,37 @@ Scene2D.prototype.resize =function(instructions){
 	this.drawStep({fwd:true, reset:true});
 }
 
+Scene2D.prototype.updatePlane = function(){
+	var instruction = this.instructions[this.layer][0];
+	var center = new THREE.Vector3(
+	ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
+	ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
+	instruction.to.z);
+	plane.position = center;
+
+}
 
 Scene2D.prototype.nextLayer = function(){
-	this.clearLayerPaths();
 	if(this.layer < this.instructions.count()-1){
+		this.clearLayerPaths();
 	       	this.layer++;
 		this.step = 0;
+		this.addGhostPaths();
+		this.drawStep({fwd: true, reset:false});
+		this.updatePlane();
 	}
-	this.addGhostPaths();
-	this.drawStep({fwd: true, reset:false});
 }
 
 
 Scene2D.prototype.prevLayer= function(){
-	this.clearLayerPaths();
 	if(this.layer > 0){
+		this.clearLayerPaths();
 		this.layer--;
 		this.step = 0;
+		this.addGhostPaths();
+		this.drawStep({fwd:true, reset:false});
+		this.updatePlane();
 	}
-	this.addGhostPaths();
-	this.drawStep({fwd:true, reset:false});
 
 }
 
@@ -252,6 +263,7 @@ Scene2D.prototype.nextStep = function(){
 		if(this.layer < this.instructions.count()-1) this.layer++;
 		this.addGhostPaths();
 		this.drawStep({fwd:true, reset:false});
+		this.updatePlane();
 	}
 
 }
@@ -270,6 +282,7 @@ Scene2D.prototype.prevStep= function(){
 		this.addLayerPaths();
 		this.step = this.instructions[this.layer].count() -1;
 		this.drawStep({fwd: false, reset:false});
+		this.updatePlane();
 	}
 }
 
@@ -293,7 +306,7 @@ Scene2D.prototype.drawStep=function(cause){
 			polylist.push(this.path[p].join(" "));
 		}
 	
-		var anitime = i.d_traveling * (20); //20ms/mm
+		var anitime = i.d_traveling * (10); //20ms/mm
 		for(var pl in this.polylines){		
 			this.polylines[pl].plot(polylist[pl]);
 		}
@@ -356,7 +369,7 @@ function create3DScene(element) {
   //camera.position.x = 0;
   //camera.position.y = 500;
   camera.position.z = 300;
-  //camera.lookAt(scene.position);
+  //camera.lookAt(plane.position);
   scene3d.add(camera);
   controls = new THREE.TrackballControls(camera);
   controls.noPan = true;
@@ -366,7 +379,6 @@ function create3DScene(element) {
   function render() {
     controls.update();
     renderer.render(scene3d, camera);
-
     requestAnimationFrame(render); // And repeat...
   }
   render();
