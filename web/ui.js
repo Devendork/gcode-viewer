@@ -23,6 +23,24 @@ function openDialog() {
 var scene2d = null;
 var scene3d = null;
 var object = null;
+var plane = null;
+
+function createPlane(){
+  	var material = new THREE.MeshBasicMaterial( {color: 0xffff00, side: THREE.DoubleSide} );
+	var geometry = new THREE.PlaneGeometry(ebbox.max.x - ebbox.min.x, ebbox.max.y - ebbox.min.y);
+
+	plane = new THREE.Mesh( geometry, material );
+	
+	var center = new THREE.Vector3(
+  		ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
+  		ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
+  		ebbox.min.z + ((ebbox.max.z - ebbox.min.z) / 2));
+  
+	plane.position = center;
+	object.add(plane);
+	
+
+}
 
 
 function checkKey(e){
@@ -61,6 +79,7 @@ function openGCodeFromPath(path) {
 
     if(hasGL){
     object = createObjectFromInstructions(instructions);
+    createPlane();
     scene3d.add(object);
     }
 
@@ -80,7 +99,8 @@ function openGCodeFromText(gcode) {
   
   if(hasGL){
   	object = createObjectFromInstructions(instructions);
-  	scene3d.add(object);
+  	createPlane();
+	scene3d.add(object);
   }	
 
   localStorage.setItem('last-imported', gcode);

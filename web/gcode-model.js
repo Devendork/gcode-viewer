@@ -1,10 +1,13 @@
 var bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
+var ebbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
 
 //we need a function that doesn't return object but has the parsing
 //2D/3D independent
 function createGeometryFromGCode(gcode) {
   
 bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
+ebbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
+
   // GCode descriptions come from:
   //    http://reprap.org/wiki/G-code
   //    http://en.wikipedia.org/wiki/G-code
@@ -51,14 +54,21 @@ bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
 
 		instructions[instructions.count()-1].push(instruction);
 		
-		//if (e>0) {
 			bbbox.min.x = Math.min(bbbox.min.x, p2.x);
 			bbbox.min.y = Math.min(bbbox.min.y, p2.y);
 			bbbox.min.z = Math.min(bbbox.min.z, p2.z);
 			bbbox.max.x = Math.max(bbbox.max.x, p2.x);
 			bbbox.max.y = Math.max(bbbox.max.y, p2.y);
 			bbbox.max.z = Math.max(bbbox.max.z, p2.z);
-		//}
+
+		if (e>0) {
+			ebbox.min.x = Math.min(ebbox.min.x, p2.x);
+			ebbox.min.y = Math.min(ebbox.min.y, p2.y);
+			ebbox.min.z = Math.min(ebbox.min.z, p2.z);
+			ebbox.max.x = Math.max(ebbox.max.x, p2.x);
+			ebbox.max.y = Math.max(ebbox.max.y, p2.y);
+			ebbox.max.z = Math.max(ebbox.max.z, p2.z);
+		}
  	}
 
   
@@ -174,20 +184,20 @@ function createObjectFromInstructions(instructions) {
  		layer = { type: {}, layer: layers.count(), z: line.z, };
  		layers.push(layer);
  	}
- 	function getLineGroup(line) {
+ 	function getLineGroup(i, line){
  		if (layer == undefined)
  			newLayer(line);
- 		var grouptype = (line.extruding ? 10000 : 0) + line.speed;
- 		var color = new THREE.Color(line.extruding ? 0xffffff : 0x0000ff);
+ 		var grouptype = (i.extruding ? 10000 : 0) + i.speed;
+ 		var color = new THREE.Color(i.extruding ? 0xffffff : 0x0000ff);
  		if (layer.type[grouptype] == undefined) {
 			layer.type[grouptype] = {
  				type: grouptype,
- 				feed: line.e,	
- 				extruding: line.extruding,
+ 				feed: i.d_extruding,	
+ 				extruding: i.extruding,
  				color: color,
  				segmentCount: 0,
  				material: new THREE.LineBasicMaterial({
-					  opacity:line.extruding ? 0.5 : 0.4,
+					  opacity:i.extruding ? 0.5 : 0.4,
 					  transparent: true,
 					  linewidth: 1,
 					  vertexColors: THREE.FaceColors }),
@@ -196,8 +206,8 @@ function createObjectFromInstructions(instructions) {
 		}
 		return layer.type[grouptype];
  	}
- 	function addSegment(p1, p2) {
-		var group = getLineGroup(p2);
+ 	function addSegment(i, p1, p2) {
+		var group = getLineGroup(i, p2);
 		var geometry = group.geometry;
 
 			
@@ -210,14 +220,15 @@ function createObjectFromInstructions(instructions) {
         	geometry.colors.push(group.color);
 	}
   
-  
-	for(var i in instructions){
-	var p1 = i.p1;
-	var p2 = i.p2;
-      	if(i.extruding){
-		if(layer == undefined || p2.z != p1.z) newLayer(p2);
+ 
+	for(var l in instructions){
+		for(var ndx in instructions[l]){
+		var i = instructions[l][ndx]; 
+		var p1 = i.from;
+		var p2 = i.to;
+		addSegment(i, p1, p2);
+		if(ndx == 0) newLayer(p2);
 	}
-	addSegment(p1, p2);
       }
        
 
@@ -234,12 +245,12 @@ function createObjectFromInstructions(instructions) {
 	}
 
   // Center
-  var scale = 3; // TODO: Auto size
+  var scale = 2; // TODO: Auto size
 
   var center = new THREE.Vector3(
-  		bbbox.min.x + ((bbbox.max.x - bbbox.min.x) / 2),
-  		bbbox.min.y + ((bbbox.max.y - bbbox.min.y) / 2),
-  		bbbox.min.z + ((bbbox.max.z - bbbox.min.z) / 2));
+  		ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
+  		ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
+  		ebbox.min.z + ((ebbox.max.z - ebbox.min.z) / 2));
 	console.log("center ", center);
   
   object.position = center.multiplyScalar(-scale);
