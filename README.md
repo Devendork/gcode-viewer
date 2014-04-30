@@ -1,7 +1,7 @@
 Step by Step 3D Printing Visualizer
 ============
-![Screenshot](https://github.com/Devendork/gcode-viewer/master/screenshots/base_view.png)
-![Screenshot](https://github.com/Devendork/gcode-viewer/master/screenshots/layer_view.png)
+![Screenshot](https://github.com/Devendork/gcode-viewer/raw/master/screenshots/base_view.png)
+![Screenshot](https://github.com/Devendork/gcode-viewer/raw/master/screenshots/layer_view.png)
 
 
 A web-based 3D viewer for [GCode](http://en.wikipedia.org/wiki/G-code) files. This allows you to 
