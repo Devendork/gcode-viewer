@@ -28,8 +28,13 @@ var plane = null;
 function createPlane(){
 	var z;
 	if(instructions != null){
-		var i = instructions[0][0];
-		z = i.to.z;
+		var inst = null;
+		var i = 0;
+		while(inst == null && i < instructions[0].count()){
+			inst = instructions[0][i].obj;
+		}
+		
+		z = (inst == null) ? 0 : inst.to.z;
 	}else z = 0;
 
 
@@ -45,6 +50,8 @@ function createPlane(){
   
 	plane.position = center;
 	object.add(plane);	
+	console.log("PlANE CREATED");
+	console.log(plane);
 }
 
 
@@ -117,12 +124,12 @@ $(function() {
 
 
   if (!Modernizr.webgl) {
-    //alert('Sorry, you need a WebGL capable browser to use this.\n\nGet the latest Chrome or FireFox.');
+    alert('You need a WebGL capable browser to view the 3D portion of this.\n\nGet the latest Chrome or FireFox.');
     hasGL = false;  
 }
 
   if (!Modernizr.localstorage) {
-    alert("Man, your browser is ancient. I can't work with this. Please upgrade.");
+    alert('You need a WebGL capable browser to view the 3D portion of this.\n\nGet the latest Chrome or FireFox.');
     hasGL = false;
   }
 

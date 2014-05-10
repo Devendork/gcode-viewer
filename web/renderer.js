@@ -1,4 +1,6 @@
 function Scene2D(element){
+	this.num_instructions = 0;
+	this.num_per_layer = [];
 	this.element = element;
 	this.layer = 0;
 	this.step = 0;
@@ -26,6 +28,9 @@ function Scene2D(element){
 
 }
 
+
+Scene2D.prototype.num_per_layer= [];
+Scene2D.prototype.num_instructions = 0;
 Scene2D.prototype.group = null;
 Scene2D.prototype.layer = 0;
 Scene2D.prototype.offset = [];
@@ -66,8 +71,10 @@ Scene2D.prototype.addGhostPaths = function(){
 
 	for(var i in this.instructions[this.layer]){
 		inst = this.instructions[this.layer][i];
-		this.addGhostPath(inst, last);
-		last = inst;		
+		if(inst.type == "G1"){
+			this.addGhostPath(inst, last);
+			last = inst;
+		}
 	}
 	
 	var g_polylist = [];
@@ -88,44 +95,46 @@ Scene2D.prototype.addLayerPaths = function(){
 
 	for(var i in this.instructions[this.layer]){
 		inst = this.instructions[this.layer][i];
-		this.addPath(inst, last);
-		last = inst;		
+		if(inst.type == "G1"){ 
+			this.addPath(inst, last);
+			last = inst;	
+		}	
 	}
 
 }
 
 Scene2D.prototype.addGhostPath= function(inst,last){
-	if(inst.extruding){
-		if (last == null || !last.extruding){
+	if(inst.type == "G1" && inst.ext){
+		if (last == null || !last.ext){
 			var np = [];
-			np.push(inst.from.x+","+inst.from.y);
+			np.push(inst.coord.x+","+inst.coord.y);
 			this.ghost_path.push(np);
 			this.ghost_polylines.push(this.createPolyline(true));
 		}
-		this.ghost_path[this.ghost_path.count()-1].push(inst.to.x+","+inst.to.y);
+		this.ghost_path[this.ghost_path.count()-1].push(inst.obj.to.x+","+inst.obj.to.y);
 	}
 
 }
+
 Scene2D.prototype.addPath= function(inst,last){
-	if(inst.extruding){
-		if (last == null || !last.extruding){
+	if(inst.type == "G1" && inst.ext){
+		if (last == null || !last.ext){
 			var np = [];
-			np.push(inst.from.x+","+inst.from.y);
+			np.push(inst.coord.x+","+inst.coord.y);
 			this.path.push(np);
 			this.polylines.push(this.createPolyline(false));
 		}
-		this.path[this.path.count()-1].push(inst.to.x+","+inst.to.y);
+		this.path[this.path.count()-1].push(inst.obj.to.x+","+inst.obj.to.y);
 	}
 
 }
 
 Scene2D.prototype.removePath = function(inst){
-	if(inst.extruding){
-		var last_ndx = this.path.count() -1;
-		this.path[last_ndx].pop();
+	if(inst.type == "G1" && inst.ext){
 		
-		//if there is only one item left than this inst represeents 
-		//the first segment in a polyline, delete the whole path
+		var last_ndx = this.path.count() -1;
+		var last_coord = this.path[last_ndx].pop();
+
 		if(this.path[last_ndx].count() == 1){
 			this.path.pop(); 
 			var pl = this.polylines.pop();
@@ -145,16 +154,19 @@ Scene2D.prototype.createPolyline = function(ghost){
 
 
 
-Scene2D.prototype.popPathItem = function(){
-	this.path[this.path.count()-1].pop();
-}
-
-
-
 Scene2D.prototype.add =function(instructions){
 		this.step = 0;
 		this.layer = 0;
 		this.instructions = instructions;	
+
+		var count = 0;
+		
+		for(var i in instructions){
+			this.num_per_layer.push(count);
+			count += instructions[i].count();
+		}
+		this.num_instructions = count;
+
 
 		//scale by bounding box
 		var sx = bbbox.max.x - bbbox.min.x;
@@ -171,9 +183,9 @@ Scene2D.prototype.add =function(instructions){
 		console.log("scale: "+this.scale);
 
 		this.offset = {x:-bbbox.min.x + ((this.w - sx*this.scale)/2),
-				y:-bbbox.min.y + ((this.h - sy*this.scale)/2)};
+				y:-bbbox.min.y + ((this.h - sy*this.scale)/4)};
 		
-		this.text.center(this.w/2, this.h - 2*this.margin/3);
+		//this.text.center(this.w/2, this.h - 2*this.margin/3);
 
 		if(this.line != null) this.line.remove();
 		if(this.circle != null) this.circle.remove();
@@ -181,16 +193,19 @@ Scene2D.prototype.add =function(instructions){
 		//create scene elements
 		this.line = this.group.line(0,0,0,0);
 		this.line.attr({'stroke-width':5/this.scale, stroke: '#666'});
-		this.circle = this.group.circle(10/this.scale).fill('#000');
+		this.circle = this.group.circle(10/this.scale).fill('#f00');
+		this.circle.move(0,0);
+		
+	
+
 		this.group.translate(this.offset.x, this.offset.y);
 		this.group.scale(this.scale, this.scale);
-	
 		this.clearLayerPaths();
 		this.addGhostPaths();
 		this.drawStep({fwd: true, reset:true});
 }
 
-Scene2D.prototype.resize =function(instructions){
+Scene2D.prototype.resize =function(){
 
 	if(this.group != null){
 		this.group.translate(-this.offset.x, -this.offset.y);
@@ -218,11 +233,19 @@ Scene2D.prototype.resize =function(instructions){
 }
 
 Scene2D.prototype.updatePlane = function(){
-	var instruction = this.instructions[this.layer][0];
+	if(!hasGL) return;
+	var instruction = null;
+	var i = 0;
+	while(instruction == null && i < this.instructions[this.layer].count()){
+		instruction = this.instructions[this.layer][i].obj;
+		i++;
+	}
+
+	var zpos = (instruction == null)? 0 : instruction.to.z;
 	var center = new THREE.Vector3(
-	ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
-	ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
-	instruction.to.z);
+		ebbox.min.x + ((ebbox.max.x - ebbox.min.x) / 2),
+		ebbox.min.y + ((ebbox.max.y - ebbox.min.y) / 2),
+		zpos);
 	plane.position = center;
 
 }
@@ -277,13 +300,24 @@ Scene2D.prototype.prevStep= function(){
 	 	if(this.layer > 0){
 			this.clearLayerPaths();
 			this.layer--;
+			this.addGhostPaths();
+			this.addLayerPaths();
+			this.step = this.instructions[this.layer].count() -1;
+			this.drawStep({fwd: false, reset:false});
+			this.updatePlane();
 		}
-		this.addGhostPaths();
-		this.addLayerPaths();
-		this.step = this.instructions[this.layer].count() -1;
-		this.drawStep({fwd: false, reset:false});
-		this.updatePlane();
 	}
+}
+
+Scene2D.prototype.getLastGInst = function(){
+	var ndx = this.step -1;
+	var inst = null
+	while(ndx > 0 && inst == null){
+		var check = this.instructions[this.layer][ndx];
+		if(check.type == "G1") inst = check;
+		ndx--;	
+	} 
+	return inst;
 }
 
 /***
@@ -291,44 +325,61 @@ inc - {next: true/false, forward: true/false, new_layer: true/false}
 */
 Scene2D.prototype.drawStep=function(cause){
 
+
 	if(instructions && instructions.count() > 0){
-	
-		var i = instructions[this.layer][this.step];
-		var li = (this.step > 0) ? instructions[this.layer][this.step-1]: null;
+			
+		var inst = instructions[this.layer][this.step];
+		var li = this.getLastGInst(this); 
+		var ni = (this.step <= this.instructions[this.layer].count()-1) ? this.instructions[this.layer][this.step+1] : null;
 		
-		if(!cause.reset){
-			if(cause.fwd) this.addPath(i, li);
-			else this.removePath(i); 
+		var d = 0;
+		if(inst.type == "G1" && !cause.reset && cause.fwd){
+			this.addPath(inst, li);
+			d = inst.obj.d_traveling;
+		}
+	
+		if(!cause.reset && !cause.fwd && (ni != null && ni.type == "G1")){
+			this.removePath(ni);
+			d = ni.obj.d_traveling;
 		}
 
 		var polylist = [];
 		for(var p in this.path){
 			polylist.push(this.path[p].join(" "));
 		}
-	
-		var anitime = i.d_traveling * (10); //20ms/mm
+
+			
+		var anitime = d * (10); //20ms/mm
 		for(var pl in this.polylines){		
 			this.polylines[pl].plot(polylist[pl]);
+			this.polylines[pl].front();
 		}
 
-		//this.line.plot(i.from.x, i.from.y, i.to.x, i.to.y);
-		//this.line.front();
+		if(inst != null){
+		if(cause.reset) this.circle.center(inst.coord.x,inst.coord.y);
+		else if(inst.type == "G1") this.circle.animate(anitime).center(inst.obj.to.x,inst.obj.to.y);
+		else this.circle.animate(anitime).center(inst.coord.x, inst.coord.y);
+		}
 
-		(i.extruding)? this.circle.attr({fill: '#0f0'}) :this.circle.attr({fill: '#f00'});
-		if(cause.reset) this.circle.center(i.to.x,i.to.y);
-		else this.circle.animate(anitime).center(i.to.x,i.to.y);
-		this.circle.front();
+		if(inst.type == "G1") this.text.attr({fill: '#999'});
+		else this.text.attr({fill:'#f00'});
+
 	
+		this.circle.front();
 
-		this.text.attr({fill: '#999'});
-		this.text.text(i.text+"\nlayer: "+(this.layer+1)+" of "+this.instructions.count()+
-					" // instruction: "+(this.step+1)+" of "+this.instructions[this.layer].count());
+		(inst.ext) ? this.circle.attr({fill: '#0f0'}) :this.circle.attr({fill: '#f00'});
+		
+
+		this.text.text(inst.text
+			      +"\n"+inst.desc
+			      +"\nlayer: "+(this.layer+1)+" of "+this.instructions.count()
+			      +" // instruction "+(this.num_per_layer[this.layer]+ this.step + 1)+" of "+(this.num_instructions));
+
 		this.text.front();
-		this.text.center(this.w/2, this.h - this.margin/2);
-
-		}else{
+		this.text.center(this.w/2, this.h - 3*this.margin/2);
+	}else{
 		this.text.clear();
-		}
+	}
 }
 
 	
