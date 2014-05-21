@@ -4,7 +4,6 @@ var extruder_value = false;
 //we need a function that doesn't return object but has the parsing
 //2D/3D independent
 function createGeometryFromGCode(gcode) {
-  
 bbbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
 ebbox = { min: { x:10000,y:10000,z:10000}, max: { x:-10000,y:-10000,z:-10000} };
 extruder_value = false;
@@ -45,7 +44,7 @@ extruder_value = false;
 		var move_distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
 
-		var instruction = {
+		var obj = {
 				to: p2,
 				speed:s,
 		        	coords: {dx: dx, dy:dy, dz:dz},	
@@ -70,7 +69,8 @@ extruder_value = false;
 			ebbox.max.z = Math.max(ebbox.max.z, p2.z);
 		}
 
-		return instruction;
+		return obj;
+
  	}
 
   
@@ -391,32 +391,31 @@ function createObjectFromInstructions(instructions) {
  
  	var layers = [];
  	var layer = undefined;
- 
-
+	
  	function newLayer(line) {
- 		layer = { type: {}, layer: layers.count(), z: line.z, };
+		layer = { type: {}, layer: layers.count(), z: line.z, };
  		layers.push(layer);
  	}
  	function getLineGroup(i, line){
- 		if (layer == undefined)
- 			newLayer(line);
- 		var grouptype = (i.extruding ? 10000 : 0) + i.speed;
- 		var color = new THREE.Color(i.extruding ? 0xffffff : 0x0000ff);
- 		if (layer.type[grouptype] == undefined) {
-			layer.type[grouptype] = {
- 				type: grouptype,
- 				feed: i.d_extruding,	
- 				extruding: i.extruding,
- 				color: color,
- 				segmentCount: 0,
- 				material: new THREE.LineBasicMaterial({
-					  opacity:i.extruding ? 0.5 : 0.4,
-					  transparent: true,
-					  linewidth: 1,
-					  vertexColors: THREE.FaceColors }),
-				geometry: new THREE.Geometry(),
+
+		if(layer == undefined) newLayer(line);	
+			var grouptype = (i.ext ? 10000 : 0) + i.speed;
+			var color = new THREE.Color(i.ext ? 0xffffff : 0x0000ff);
+			if (layer.type[grouptype] == undefined) {
+				layer.type[grouptype] = {
+					type: grouptype,
+					feed: i.obj.d_extruding,	
+					extruding: i.ext,
+					color: color,
+					segmentCount: 0,
+					material: new THREE.LineBasicMaterial({
+						  opacity:0.5,
+						  transparent:true,
+						  linewidth:1,
+						  vertexColors: THREE.FaceColors }),
+					geometry: new THREE.Geometry(),
+				}
 			}
-		}
 		return layer.type[grouptype];
  	}
  	function addSegment(i, p1, p2) {
@@ -433,14 +432,19 @@ function createObjectFromInstructions(instructions) {
         	geometry.colors.push(group.color);
 	}
   
- 
 	for(var l in instructions){
+		var has_draw = false;
 		for(var ndx in instructions[l]){
-		var i = instructions[l][ndx]; 
-		var p1 = i.from;
-		var p2 = i.to;
-		addSegment(i, p1, p2);
-		if(ndx == 0) newLayer(p2);
+		var i = instructions[l][ndx];
+		var p1 = i.coord;
+		if(i.ext){
+			var p2 = i.obj.to;
+			addSegment(i, p1, p2);
+			if(!has_draw){
+				newLayer(p2);
+				has_draw = true;
+			}
+		}
 	}
       }
        
@@ -453,7 +457,7 @@ function createObjectFromInstructions(instructions) {
 		var layer = layers[lid];
 		for (var tid in layer.type) {
 			var type = layer.type[tid];
-		  object.add(new THREE.Line(type.geometry, type.material, THREE.LinePieces));
+		  	object.add(new THREE.Line(type.geometry, type.material, THREE.LinePieces));
 		}
 	}
 

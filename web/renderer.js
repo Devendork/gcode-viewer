@@ -390,7 +390,7 @@ function create3DScene(element) {
 
   // Renderer
   var split_width = element.width();
-  var renderer = new THREE.WebGLRenderer({clearColor:0x000000, clearAlpha: 1});
+  var renderer = new THREE.WebGLRenderer({clearColor:0x000000, clearAlpha: 1, alpha:true});
   renderer.setSize(split_width, element.height());
   element.append(renderer.domElement);
   renderer.clear();
